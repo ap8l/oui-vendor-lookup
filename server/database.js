@@ -7,8 +7,14 @@ const { rateLimit } = require("express-rate-limit");
 
 const { SUPABASE_URL, SUPABASE_SECRET_KEY } = process.env;
 
-if (!SUPABASE_URL) throw new Error("SUPABASE_URL is missing.");
-if (!SUPABASE_SECRET_KEY) throw new Error("SUPABASE_SECRET_KEY is missing.");
+if (!SUPABASE_URL) {
+  throw new Error("SUPABASE_URL is missing.");
+}
+
+if (!SUPABASE_SECRET_KEY) {
+  throw new Error("SUPABASE_SECRET_KEY is missing.");
+}
+
 if (!SUPABASE_URL.startsWith("https://")) {
   throw new Error("SUPABASE_URL must use HTTPS.");
 }
@@ -26,19 +32,24 @@ const subscribeLimiter = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many subscription attempts. Please try again later." },
+  message: {
+    error: "Too many subscription attempts. Please try again later.",
+  },
 });
 
 function normalizeEmail(value) {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const email = value.trim().toLowerCase();
 
-  return email.length >= 3 &&
+  const isValid =
+    email.length >= 3 &&
     email.length <= 254 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    ? email
-    : null;
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  return isValid ? email : null;
 }
 
 async function saveSubscriber(email) {
@@ -49,20 +60,32 @@ async function saveSubscriber(email) {
   });
 
   if (!error) {
-    return { success: true };
+    return {
+      success: true,
+      duplicate: false,
+    };
   }
 
   if (error.code === "23505") {
-    return { success: true };
+    return {
+      success: true,
+      duplicate: true,
+    };
   }
 
-  console.error("Database error:", error.code);
+  console.error("Supabase database error:", {
+    code: error.code,
+    message: error.message,
+  });
 
-  return { success: false };
+  return {
+    success: false,
+    duplicate: false,
+  };
 }
 
 function registerDatabaseRoutes(app) {
-  if (!app?.post) {
+  if (!app || typeof app.post !== "function") {
     throw new TypeError("A valid Express app is required.");
   }
 
@@ -70,23 +93,32 @@ function registerDatabaseRoutes(app) {
     const email = normalizeEmail(req.body?.email);
 
     if (!email) {
-      return res.status(400).json({ error: "Enter a valid email." });
+      return res.status(400).json({
+        error: "Enter a valid email.",
+      });
     }
 
     try {
       const result = await saveSubscriber(email);
 
       if (!result.success) {
-        return res
-          .status(500)
-          .json({ error: "Unable to subscribe right now." });
+        return res.status(500).json({
+          error: "Unable to subscribe right now.",
+        });
       }
 
-      res.json({ message: "Thanks for subscribing." });
+      return res.status(200).json({
+        message: result.duplicate
+          ? "You are already subscribed."
+          : "Thanks for subscribing.",
+      });
     } catch (error) {
-      console.error("Unexpected error:", error.name);
+      console.error("Unexpected subscription error:", {
+        name: error?.name,
+        message: error?.message,
+      });
 
-      res.status(500).json({
+      return res.status(500).json({
         error: "Unable to subscribe right now.",
       });
     }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 
 function getMacTypes(oui) {
-  const firstOctet = parseInt(oui, 16);
+  const firstOctet = Number.parseInt(oui.slice(0, 2), 16);
 
   if (Number.isNaN(firstOctet)) {
     return ["Unknown", "Unknown"];
@@ -10,7 +10,9 @@ function getMacTypes(oui) {
 
   return [
     firstOctet & 1 ? "Multicast" : "Unicast",
-    firstOctet & 2 ? "Locally Administered" : "Universally Administered",
+    firstOctet & 2
+      ? "Locally Administered"
+      : "Universally Administered",
   ];
 }
 
@@ -32,7 +34,9 @@ function App() {
   }
 
   async function lookupOUI() {
-    if (oui.replaceAll(":", "").length !== 6) {
+    const normalizedOUI = oui.replaceAll(":", "");
+
+    if (!/^[0-9A-F]{6}$/.test(normalizedOUI)) {
       setError("Enter a valid OUI.");
       return;
     }
@@ -43,8 +47,19 @@ function App() {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/api/mac/${encodeURIComponent(oui)}`
+        `/api/mac/${encodeURIComponent(oui)}`,
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        }
       );
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json")) {
+        throw new Error("The server returned an invalid response.");
+      }
 
       const result = await response.json();
 
@@ -88,14 +103,20 @@ function App() {
         <input
           value={oui}
           onChange={handleChange}
-          onKeyDown={(event) => event.key === "Enter" && lookupOUI()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !loading) {
+              lookupOUI();
+            }
+          }}
           maxLength={8}
           autoComplete="off"
           spellCheck={false}
           aria-label="OUI"
+          disabled={loading}
         />
 
         <button
+          type="button"
           onClick={lookupOUI}
           disabled={loading}
           aria-label="Search"
@@ -108,12 +129,13 @@ function App() {
         <div className="result">
           {error && <p className="error">{error}</p>}
 
-          {rows.map(([label, value]) => (
-            <div className="result-row" key={label}>
-              <span>{label}</span>
-              <strong>{value ?? "N/A"}</strong>
-            </div>
-          ))}
+          {data &&
+            rows.map(([label, value]) => (
+              <div className="result-row" key={label}>
+                <span>{label}</span>
+                <strong>{value ?? "N/A"}</strong>
+              </div>
+            ))}
         </div>
       )}
     </section>

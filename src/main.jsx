@@ -28,9 +28,12 @@ function Main() {
     setStatus("");
 
     try {
-      const response = await fetch("http://localhost:3000/api/subscribe", {
+      const response = await fetch("/api/subscribe", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ email: value }),
       });
 
@@ -62,7 +65,7 @@ function Main() {
               This project is{" "}
               <a
                 className="main-open-source"
-                href="https://github.com/ap8l"
+                href="https://github.com/ap8l/oui-vendor-lookup"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -71,7 +74,7 @@ function Main() {
             </span>
 
             <a
-              href="https://github.com/ap8l"
+              href="https://github.com/ap8l/oui-vendor-lookup"
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub"
@@ -111,7 +114,7 @@ function Main() {
               disabled={loading}
             />
 
-            <button disabled={loading}>
+            <button type="submit" disabled={loading}>
               {loading ? "..." : "Subscribe"}
             </button>
           </div>

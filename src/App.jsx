@@ -1,6 +1,8 @@
 import { useState } from "react";
 import "./App.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 function getMacTypes(oui) {
   const firstOctet = Number.parseInt(oui.slice(0, 2), 16);
 
@@ -47,7 +49,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `/api/mac/${encodeURIComponent(oui)}`,
+        `${API_BASE_URL}/api/mac/${encodeURIComponent(oui)}`,
         {
           headers: {
             Accept: "application/json",

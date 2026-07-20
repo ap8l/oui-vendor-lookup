@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const socials = [
   ["X", "https://x.com/ap8l_dev", "/xlogo.svg"],
   ["Bluesky", "https://bsky.app/profile/ap8l.bsky.social", "/bluesky.svg"],
@@ -28,7 +30,7 @@ function Main() {
     setStatus("");
 
     try {
-      const response = await fetch("/api/subscribe", {
+      const response = await fetch(`${API_BASE_URL}/api/subscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -36,6 +38,12 @@ function Main() {
         },
         body: JSON.stringify({ email: value }),
       });
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json")) {
+        throw new Error("The server returned an invalid response.");
+      }
 
       const result = await response.json();
 
@@ -119,7 +127,9 @@ function Main() {
             </button>
           </div>
 
-          {status && <small className="main-email-status">{status}</small>}
+          {status && (
+            <small className="main-email-status">{status}</small>
+          )}
         </form>
       </footer>
     </main>

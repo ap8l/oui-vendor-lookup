@@ -1,15 +1,16 @@
 {
-  "name": "server",
+  "name": "oui-vendor-lookup-api",
   "version": "1.0.0",
+  "private": true,
   "type": "commonjs",
   "main": "server.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "engines": {
+    "node": "22.x"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
     "cors": "^2.8.6",

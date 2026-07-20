@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const { rateLimit } = require("express-rate-limit");
 const registerDatabaseRoutes = require("./database");
 
@@ -13,17 +14,46 @@ const port = Number.parseInt(process.env.PORT, 10) || 3000;
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
-const allowedOrigins = [
+const configuredOrigins = String(process.env.FRONTEND_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
   "http://localhost:5173",
   "https://oui-vendor-lookup.vercel.app",
   "https://ouivendorlookup.website",
-];
+  ...configuredOrigins,
+]);
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  // Optional: permit preview deployments belonging to this frontend project.
+  try {
+    const url = new URL(origin);
+
+    return (
+      url.protocol === "https:" &&
+      /^oui-vendor-lookup-[a-z0-9-]+\.vercel\.app$/i.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+app.use(helmet());
 
 app.use(
   cors({
     origin(origin, callback) {
-      // Requests made directly in a browser or by API tools may have no Origin.
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
 
@@ -130,10 +160,19 @@ app.use((req, res) => {
 });
 
 app.use((error, req, res, next) => {
-  console.error("Unhandled server error:", error);
+  console.error("Unhandled server error:", {
+    name: error?.name,
+    message: error?.message,
+  });
 
   if (res.headersSent) {
     return next(error);
+  }
+
+  if (error?.message === "Origin not allowed by CORS.") {
+    return res.status(403).json({
+      error: "Origin not allowed.",
+    });
   }
 
   return res.status(500).json({

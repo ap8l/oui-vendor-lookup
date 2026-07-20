@@ -13,13 +13,24 @@ const port = Number.parseInt(process.env.PORT, 10) || 3000;
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://oui-vendor-lookup.vercel.app",
+  "https://ouivendorlookup.website",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://oui-vendor-lookup.vercel.app",
-      "https://ouivendorlookup.website",
-    ],
+    origin(origin, callback) {
+      // Requests made directly in a browser or by API tools may have no Origin.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS."));
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept"],
   })
 );
 
@@ -33,6 +44,12 @@ const lookupLimiter = rateLimit({
   message: {
     error: "Too many lookups. Please wait one minute and try again.",
   },
+});
+
+app.get("/api/health", (req, res) => {
+  return res.status(200).json({
+    status: "ok",
+  });
 });
 
 app.get("/api/mac/:address", lookupLimiter, async (req, res) => {
@@ -57,19 +74,37 @@ app.get("/api/mac/:address", lookupLimiter, async (req, res) => {
       }
     );
 
-    if (!response.ok) {
+    const responseText = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch {
       return res.status(502).json({
-        error: "Lookup failed.",
+        error: "The lookup service returned an invalid response.",
       });
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      return res.status(502).json({
+        error:
+          typeof data?.error === "string"
+            ? data.error
+            : "Lookup failed.",
+      });
+    }
 
-    return res.json(data);
+    return res.status(200).json(data);
   } catch (error) {
     const timedOut =
       error?.name === "TimeoutError" ||
       error?.name === "AbortError";
+
+    console.error("MAC lookup error:", {
+      name: error?.name,
+      message: error?.message,
+    });
 
     return res.status(502).json({
       error: timedOut
@@ -81,40 +116,35 @@ app.get("/api/mac/:address", lookupLimiter, async (req, res) => {
 
 registerDatabaseRoutes(app);
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "ok",
+app.get("/", (req, res) => {
+  return res.status(200).json({
+    name: "OUI Vendor Lookup API",
+    status: "running",
   });
 });
 
-app.get("/", (req, res) => {
-  res.send("Backend running");
-});
-
 app.use((req, res) => {
-  res.status(404).json({
+  return res.status(404).json({
     error: "Not found.",
   });
 });
 
-app.use((err, req, res, next) => {
-  console.error(err);
+app.use((error, req, res, next) => {
+  console.error("Unhandled server error:", error);
 
   if (res.headersSent) {
-    return next(err);
+    return next(error);
   }
 
-  res.status(500).json({
+  return res.status(500).json({
     error: "Internal server error.",
   });
 });
 
-// Local development
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
   });
 }
 
-// Vercel
 module.exports = app;
